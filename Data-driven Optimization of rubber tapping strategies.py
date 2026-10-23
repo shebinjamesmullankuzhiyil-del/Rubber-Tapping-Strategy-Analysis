@@ -1,805 +1,738 @@
+# ============================================================
+# DATA-DRIVEN OPTIMIZATION OF RUBBER TAPPING STRATEGIES
+# ============================================================
+
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
-
-# =========================================================
-# 1. LOAD EXCEL FILE
-# =========================================================
-
-data = pd.read_excel(
-    "C:/Users/shebi/Downloads/rubber data set.xlsx"
-)
-
-print("\nFIRST 5 ROWS:")
-print(data.head())
+import os
 
 
-# =========================================================
+# ============================================================
+# 1. LOAD DATA
+# ============================================================
+
+input_file = r"C:\Users\shebi\Downloads\rubber data set.xlsx"
+
+df = pd.read_excel(input_file)
+
+print("\n================ ORIGINAL DATA ================\n")
+print(df.head())
+
+print("\nColumns:")
+print(df.columns.tolist())
+
+
+# ============================================================
 # 2. CLEAN COLUMN NAMES
-# =========================================================
+# ============================================================
 
-data.columns = data.columns.str.strip()
+df.columns = df.columns.str.strip()
 
-print("\nCOLUMN NAMES:")
-print(data.columns.tolist())
-
-
-# =========================================================
-# 3. CHECK MISSING VALUES
-# =========================================================
-
-print("\nMISSING VALUES:")
-print(data.isnull().sum())
-
-print("\nDUPLICATE ROWS:")
-print(data.duplicated().sum())
-
-# Remove duplicate rows
-data = data.drop_duplicates()
+print("\n================ CLEANED COLUMNS ================\n")
+print(df.columns.tolist())
 
 
-# =========================================================
-# 4. CLEAN DATE
-# =========================================================
+# ============================================================
+# 3. REMOVE PROFIT COLUMN IF IT EXISTS
+# ============================================================
 
-# Correct wrong year 5025 → 2025
-data["Date"] = (
-    data["Date"]
-    .astype(str)
-    .str.replace("5025", "2025", regex=False)
+if "Profit" in df.columns:
+    df = df.drop(columns=["Profit"])
+
+print("\nProfit column removed if it existed.")
+
+
+# ============================================================
+# 4. CHECK MISSING VALUES
+# ============================================================
+
+print("\n================ MISSING VALUES ================\n")
+print(df.isnull().sum())
+
+
+# ============================================================
+# 5. CHECK DUPLICATE ROWS
+# ============================================================
+
+duplicates = df.duplicated().sum()
+
+print("\n================ DUPLICATES ================\n")
+print("Number of duplicate rows:", duplicates)
+
+if duplicates > 0:
+    df = df.drop_duplicates()
+
+
+# ============================================================
+# 6. CORRECT AND CONVERT DATE VALUES
+# ============================================================
+
+df["Date"] = df["Date"].astype(str)
+
+# Correct incorrect year 5025 to 2025 if present
+df["Date"] = df["Date"].str.replace(
+    "5025",
+    "2025",
+    regex=False
 )
 
-# Convert to date
-data["Date"] = pd.to_datetime(
-    data["Date"],
+# IMPORTANT:
+# Excel dates are already YYYY-MM-DD.
+# Do NOT use dayfirst=True.
+
+df["Date"] = pd.to_datetime(
+    df["Date"],
     errors="coerce"
 )
 
-print("\nINVALID DATES:")
-print(data[data["Date"].isna()])
+print("\n================ DATE CHECK ================\n")
+print(df["Date"].head())
+
+print("\nNumber of invalid dates:",
+      df["Date"].isna().sum())
 
 
-# =========================================================
-# 5. CHECK TREATMENT VALUES
-# =========================================================
+# ============================================================
+# 7. CHECK TREATMENT VALUES
+# ============================================================
 
-print("\nTREATMENT VALUES:")
-print(data["Treatment"].value_counts())
-
-
-# =========================================================
-# 6. CHECK ORIGINAL DATA
-# =========================================================
-
-print("\nINCOME AND PROFIT CHECK:")
-print(
-    data[
-        ["Latex", "Income", "Expense", "Profit"]
-    ].head()
-)
+print("\n================ TREATMENT VALUES ================\n")
+print(df["Treatment"].value_counts())
 
 
-# =========================================================
-# 7. WORKING DAYS
-# =========================================================
+# ============================================================
+# 8. CONVERT TIME TAKEN INTO HOURS
+# ============================================================
 
-working_days = data.groupby(
-    "Plantation"
-)["Date"].nunique()
-
-print("\nWORKING DAYS:")
-print(working_days)
-
-
-# =========================================================
-# 8. TOTAL LATEX
-# =========================================================
-
-total_latex = data.groupby(
-    "Plantation"
-)["Latex"].sum()
-
-print("\nTOTAL LATEX:")
-print(total_latex)
-
-
-# =========================================================
-# 9. TOTAL INCOME
-# =========================================================
-
-total_income = data.groupby(
-    "Plantation"
-)["Income"].sum()
-
-print("\nTOTAL INCOME:")
-print(total_income)
-
-
-# =========================================================
-# 10. TOTAL EXPENSE
-# =========================================================
-
-total_expense = data.groupby(
-    "Plantation"
-)["Expense"].sum()
-
-print("\nTOTAL EXPENSE:")
-print(total_expense)
-
-
-# =========================================================
-# 11. TOTAL PROFIT
-# =========================================================
-
-total_profit = data.groupby(
-    "Plantation"
-)["Profit"].sum()
-
-print("\nTOTAL PROFIT:")
-print(total_profit)
-
-
-# =========================================================
-# 12. LATEX PER DAY
-# =========================================================
-
-latex_per_day = (
-    total_latex / working_days
-)
-
-print("\nLATEX PER WORKING DAY:")
-print(latex_per_day)
-
-
-# =========================================================
-# 13. INCOME PER DAY
-# =========================================================
-
-income_per_day = (
-    total_income / working_days
-)
-
-print("\nINCOME PER WORKING DAY:")
-print(income_per_day)
-
-
-# =========================================================
-# 14. EXPENSE PER DAY
-# =========================================================
-
-expense_per_day = (
-    total_expense / working_days
-)
-
-print("\nEXPENSE PER WORKING DAY:")
-print(expense_per_day)
-
-
-# =========================================================
-# 15. PROFIT PER DAY
-# =========================================================
-
-profit_per_day = (
-    total_profit / working_days
-)
-
-print("\nPROFIT PER WORKING DAY:")
-print(profit_per_day)
-
-
-# =========================================================
-# 16. CONVERT TIME TAKEN INTO HOURS
-# =========================================================
-
-data["Time_Hours"] = (
-    data["Time Taken"]
+df["Time_Hours"] = (
+    df["Time Taken"]
     .astype(str)
-    .str.replace("h", "", regex=False)
-    .str.strip()
+    .str.extract(r"(\d+\.?\d*)")[0]
+    .astype(float)
 )
 
-data["Time_Hours"] = pd.to_numeric(
-    data["Time_Hours"],
-    errors="coerce"
+print("\n================ TIME CHECK ================\n")
+print(df[["Time Taken", "Time_Hours"]].head())
+
+
+# ============================================================
+# 9. BASIC DATA INFORMATION
+# ============================================================
+
+print("\n================ DATA INFORMATION ================\n")
+
+print("Number of records:", len(df))
+print("Number of columns:", len(df.columns))
+
+print("\nData types:")
+print(df.dtypes)
+
+
+# ============================================================
+# 10. OVERALL TOTALS
+# ============================================================
+
+total_latex = df["Latex"].sum()
+total_revenue = df["Income"].sum()
+total_expense = df["Expense"].sum()
+total_working_days = len(df)
+total_working_hours = df["Time_Hours"].sum()
+
+print("\n================ OVERALL TOTALS ================\n")
+
+print("Total Latex:", total_latex, "kg")
+print("Total Revenue: ₹", total_revenue)
+print("Total Recorded Tapping Expense: ₹", total_expense)
+print("Total Working Days:", total_working_days)
+print("Total Working Hours:", total_working_hours)
+
+
+# ============================================================
+# 11. CALCULATE TAPPING GAP
+# ============================================================
+
+df = df.sort_values(
+    ["Plantation", "Date"]
 )
 
-print("\nTIME VALUES:")
-print(data["Time_Hours"].value_counts())
-
-
-# =========================================================
-# 17. AVERAGE TIME
-# =========================================================
-
-average_time = data.groupby(
-    "Plantation"
-)["Time_Hours"].mean()
-
-print("\nAVERAGE TIME PER DAY:")
-print(average_time)
-
-
-# =========================================================
-# 18. TOTAL WORKING HOURS
-# =========================================================
-
-total_working_hours = (
-    working_days * average_time
+df["Tapping_Gap_Days"] = (
+    df.groupby("Plantation")["Date"]
+    .diff()
+    .dt.days
 )
 
-print("\nTOTAL WORKING HOURS:")
-print(total_working_hours)
-
-
-# =========================================================
-# 19. BARK CONSUMPTION
-# =========================================================
-
-average_bark = data.groupby(
-    "Plantation"
-)["Bark"].mean()
-
-total_bark = data.groupby(
-    "Plantation"
-)["Bark"].sum()
-
-print("\nAVERAGE BARK:")
-print(average_bark)
-
-print("\nTOTAL BARK:")
-print(total_bark)
-
-
-# =========================================================
-# 20. LATEX PER HOUR
-# =========================================================
-
-latex_per_hour = (
-    total_latex / total_working_hours
-)
-
-print("\nLATEX PER HOUR:")
-print(latex_per_hour)
-
-
-# =========================================================
-# 21. PROFIT PER HOUR
-# =========================================================
-
-profit_per_hour = (
-    total_profit / total_working_hours
-)
-
-print("\nPROFIT PER HOUR:")
-print(profit_per_hour)
-
-
-# =========================================================
-# 22. CREATE FINAL PLANTATION SUMMARY
-# =========================================================
-
-summary = pd.DataFrame({
-
-    "Working Days": working_days,
-
-    "Total Latex (kg)": total_latex,
-
-    "Latex per Day (kg)": latex_per_day,
-
-    "Total Income (Rs)": total_income,
-
-    "Total Expense (Rs)": total_expense,
-
-    "Total Profit (Rs)": total_profit,
-
-    "Income per Day (Rs)": income_per_day,
-
-    "Expense per Day (Rs)": expense_per_day,
-
-    "Profit per Day (Rs)": profit_per_day,
-
-    "Average Time (hours)": average_time,
-
-    "Total Working Hours": total_working_hours,
-
-    "Latex per Hour (kg)": latex_per_hour,
-
-    "Profit per Hour (Rs)": profit_per_hour,
-
-    "Average Bark (cm)": average_bark,
-
-    "Total Bark (cm)": total_bark
-})
-
-
-# =========================================================
-# 23. DISPLAY PLANTATION SUMMARY
-# =========================================================
-
-print("\n")
-print("======================================================")
-print("              PLANTATION SUMMARY")
-print("======================================================")
-
-print(summary.round(2))
-
-
-# =========================================================
-# 24. STRATEGY COMPARISON
-# =========================================================
-
-strategy = data.groupby("Treatment").agg({
-
-    "Latex": "sum",
-
-    "Income": "sum",
-
-    "Expense": "sum",
-
-    "Profit": "sum",
-
-    "Date": "nunique",
-
-    "Time_Hours": "sum",
-
-    "Bark": "sum"
-})
-
-
-# Rename columns
-strategy = strategy.rename(columns={
-
-    "Latex": "Total Latex",
-
-    "Income": "Total Income",
-
-    "Expense": "Total Expense",
-
-    "Profit": "Total Profit",
-
-    "Date": "Working Days",
-
-    "Time_Hours": "Total Working Hours",
-
-    "Bark": "Total Bark"
-})
-
-
-# =========================================================
-# 25. STRATEGY NAMES
-# =========================================================
-
-strategy["Strategy"] = strategy.index.map({
-
-    1: "With Medicine",
-
-    0: "Without Medicine"
-
-})
-
-
-# =========================================================
-# 26. CALCULATE STRATEGY PERFORMANCE
-# =========================================================
-
-strategy["Latex per Day"] = (
-
-    strategy["Total Latex"] /
-
-    strategy["Working Days"]
-
-)
-
-
-strategy["Income per Day"] = (
-
-    strategy["Total Income"] /
-
-    strategy["Working Days"]
-
-)
-
-
-strategy["Expense per Day"] = (
-
-    strategy["Total Expense"] /
-
-    strategy["Working Days"]
-
-)
-
-
-strategy["Profit per Day"] = (
-
-    strategy["Total Profit"] /
-
-    strategy["Working Days"]
-
-)
-
-
-strategy["Latex per Hour"] = (
-
-    strategy["Total Latex"] /
-
-    strategy["Total Working Hours"]
-
-)
-
-
-strategy["Profit per Hour"] = (
-
-    strategy["Total Profit"] /
-
-    strategy["Total Working Hours"]
-
-)
-
-
-# =========================================================
-# 27. DISPLAY STRATEGY COMPARISON
-# =========================================================
-
-print("\n")
-print("======================================================")
-print("             TAPPING STRATEGY COMPARISON")
-print("======================================================")
+print("\n================ TAPPING GAP ================\n")
 
 print(
-
-    strategy[
+    df[
         [
-            "Strategy",
-            "Working Days",
-            "Total Latex",
-            "Total Income",
-            "Total Expense",
-            "Total Profit",
-            "Latex per Day",
-            "Profit per Day",
-            "Total Working Hours",
-            "Latex per Hour",
-            "Profit per Hour",
-            "Total Bark"
+            "Plantation",
+            "Date",
+            "Tapping_Gap_Days"
         ]
-    ].round(2)
+    ].head(20)
+)
+
+
+# ============================================================
+# 12. PLANTATION SUMMARY
+# ============================================================
+
+summary = df.groupby("Plantation").agg(
+
+    Working_Days=("Date", "count"),
+
+    Total_Latex=("Latex", "sum"),
+
+    Total_Revenue=("Income", "sum"),
+
+    Recorded_Tapping_Expense=("Expense", "sum"),
+
+    Total_Working_Hours=("Time_Hours", "sum"),
+
+    Average_Time_Hours=("Time_Hours", "mean"),
+
+    Average_Bark=("Bark", "mean"),
+
+    Total_Bark=("Bark", "sum"),
+
+    Average_Tapping_Gap=("Tapping_Gap_Days", "mean")
 
 )
 
 
-# =========================================================
-# 28. FIND BEST STRATEGY
-# =========================================================
+# ============================================================
+# 13. CALCULATED METRICS
+# ============================================================
 
-strategy["Score"] = 0
+summary["Latex_per_Day"] = (
+    summary["Total_Latex"] /
+    summary["Working_Days"]
+)
 
+summary["Revenue_per_Day"] = (
+    summary["Total_Revenue"] /
+    summary["Working_Days"]
+)
 
-# Highest total latex
-strategy.loc[
-    strategy["Total Latex"].idxmax(),
-    "Score"
-] += 1
+summary["Expense_per_Day"] = (
+    summary["Recorded_Tapping_Expense"] /
+    summary["Working_Days"]
+)
 
+summary["Latex_per_Hour"] = (
+    summary["Total_Latex"] /
+    summary["Total_Working_Hours"]
+)
 
-# Highest total profit
-strategy.loc[
-    strategy["Total Profit"].idxmax(),
-    "Score"
-] += 1
+summary["Revenue_per_Hour"] = (
+    summary["Total_Revenue"] /
+    summary["Total_Working_Hours"]
+)
 
-
-# Highest profit per day
-strategy.loc[
-    strategy["Profit per Day"].idxmax(),
-    "Score"
-] += 1
-
-
-# Highest latex per day
-strategy.loc[
-    strategy["Latex per Day"].idxmax(),
-    "Score"
-] += 1
-
-
-# Lowest working days
-strategy.loc[
-    strategy["Working Days"].idxmin(),
-    "Score"
-] += 1
+# Study period = 4 months
+summary["Average_Working_Days_per_Month"] = (
+    summary["Working_Days"] / 4
+)
 
 
-# Highest profit per hour
-strategy.loc[
-    strategy["Profit per Hour"].idxmax(),
-    "Score"
-] += 1
+# ============================================================
+# 14. ADD STRATEGY NAME
+# ============================================================
+
+summary["Strategy"] = summary.index.map({
+    1: "With Medicine",
+    2: "Without Medicine"
+})
 
 
-# Lowest bark consumption
-strategy.loc[
-    strategy["Total Bark"].idxmin(),
-    "Score"
-] += 1
+# ============================================================
+# 15. REORDER COLUMNS
+# ============================================================
 
-
-# =========================================================
-# 29. BEST STRATEGY
-# =========================================================
-
-best_treatment = strategy["Score"].idxmax()
-
-best_strategy = strategy.loc[
-    best_treatment,
-    "Strategy"
+summary = summary[
+    [
+        "Strategy",
+        "Working_Days",
+        "Average_Working_Days_per_Month",
+        "Total_Latex",
+        "Latex_per_Day",
+        "Total_Revenue",
+        "Revenue_per_Day",
+        "Recorded_Tapping_Expense",
+        "Expense_per_Day",
+        "Average_Time_Hours",
+        "Total_Working_Hours",
+        "Latex_per_Hour",
+        "Revenue_per_Hour",
+        "Average_Bark",
+        "Total_Bark",
+        "Average_Tapping_Gap"
+    ]
 ]
 
 
-print("\n")
-print("======================================================")
-print("              OPTIMIZATION RESULT")
-print("======================================================")
+# ============================================================
+# 16. DISPLAY PLANTATION SUMMARY
+# ============================================================
+
+print("\n================ PLANTATION SUMMARY ================\n")
+print(summary)
+
+
+# ============================================================
+# 17. STRATEGY COMPARISON
+# ============================================================
+
+comparison = df.groupby("Treatment").agg(
+
+    Total_Latex=("Latex", "sum"),
+
+    Total_Revenue=("Income", "sum"),
+
+    Recorded_Tapping_Expense=("Expense", "sum"),
+
+    Working_Days=("Date", "count"),
+
+    Total_Working_Hours=("Time_Hours", "sum"),
+
+    Average_Time_Hours=("Time_Hours", "mean"),
+
+    Average_Bark=("Bark", "mean"),
+
+    Total_Bark=("Bark", "sum"),
+
+    Average_Tapping_Gap=("Tapping_Gap_Days", "mean")
+
+)
+
+
+# ============================================================
+# 18. CALCULATE STRATEGY METRICS
+# ============================================================
+
+comparison["Latex_per_Day"] = (
+    comparison["Total_Latex"] /
+    comparison["Working_Days"]
+)
+
+comparison["Revenue_per_Day"] = (
+    comparison["Total_Revenue"] /
+    comparison["Working_Days"]
+)
+
+comparison["Latex_per_Hour"] = (
+    comparison["Total_Latex"] /
+    comparison["Total_Working_Hours"]
+)
+
+comparison["Revenue_per_Hour"] = (
+    comparison["Total_Revenue"] /
+    comparison["Total_Working_Hours"]
+)
+
+
+# ============================================================
+# 19. RENAME TREATMENT VALUES
+# ============================================================
+
+comparison.index = comparison.index.map({
+    1: "With Medicine",
+    0: "Without Medicine"
+})
+
+
+# ============================================================
+# 20. DISPLAY STRATEGY COMPARISON
+# ============================================================
+
+print("\n================ STRATEGY COMPARISON ================\n")
+print(comparison)
+
+
+# ============================================================
+# 21. RULE-BASED STRATEGY SCORING
+# ============================================================
+
+comparison["Score"] = 0
+
+
+# Higher total latex
+winner = comparison["Total_Latex"].idxmax()
+comparison.loc[winner, "Score"] += 1
+
+
+# Higher total revenue
+winner = comparison["Total_Revenue"].idxmax()
+comparison.loc[winner, "Score"] += 1
+
+
+# Higher revenue per day
+winner = comparison["Revenue_per_Day"].idxmax()
+comparison.loc[winner, "Score"] += 1
+
+
+# Higher latex per day
+winner = comparison["Latex_per_Day"].idxmax()
+comparison.loc[winner, "Score"] += 1
+
+
+# Lower working days
+winner = comparison["Working_Days"].idxmin()
+comparison.loc[winner, "Score"] += 1
+
+
+# Higher revenue per hour
+winner = comparison["Revenue_per_Hour"].idxmax()
+comparison.loc[winner, "Score"] += 1
+
+
+# Lower bark consumption
+winner = comparison["Total_Bark"].idxmin()
+comparison.loc[winner, "Score"] += 1
+
+
+# ============================================================
+# 22. FINAL RECOMMENDATION
+# ============================================================
+
+recommendation = comparison["Score"].idxmax()
+
+print("\n================ FINAL RECOMMENDATION ================\n")
+
+print("Recommended Strategy:", recommendation)
+
+print("\nScore:")
+print(comparison["Score"])
+
+
+# ============================================================
+# 23. IMPORTANT DIFFERENCES
+# ============================================================
+
+with_medicine = comparison.loc["With Medicine"]
+
+without_medicine = comparison.loc["Without Medicine"]
+
+
+latex_difference = (
+    with_medicine["Total_Latex"]
+    - without_medicine["Total_Latex"]
+)
+
+
+revenue_difference = (
+    with_medicine["Total_Revenue"]
+    - without_medicine["Total_Revenue"]
+)
+
+
+working_day_difference = (
+    without_medicine["Working_Days"]
+    - with_medicine["Working_Days"]
+)
+
+
+revenue_day_difference = (
+    with_medicine["Revenue_per_Day"]
+    - without_medicine["Revenue_per_Day"]
+)
+
+
+working_hour_difference = (
+    without_medicine["Total_Working_Hours"]
+    - with_medicine["Total_Working_Hours"]
+)
+
+
+bark_difference = (
+    without_medicine["Total_Bark"]
+    - with_medicine["Total_Bark"]
+)
+
+
+revenue_hour_difference = (
+    with_medicine["Revenue_per_Hour"]
+    - without_medicine["Revenue_per_Hour"]
+)
+
+
+gap_difference = (
+    with_medicine["Average_Tapping_Gap"]
+    - without_medicine["Average_Tapping_Gap"]
+)
+
+
+print("\n================ KEY DIFFERENCES ================\n")
 
 print(
-    "\nRecommended Tapping Strategy:"
+    "Additional Latex with Medicine:",
+    latex_difference,
+    "kg"
 )
 
 print(
-    ">>>", best_strategy
+    "Additional Revenue with Medicine: ₹",
+    revenue_difference
 )
-
-
-print("\nStrategy Scores:")
 
 print(
+    "Fewer Working Days with Medicine:",
+    working_day_difference
+)
 
-    strategy[
-        ["Strategy", "Score"]
-    ]
+print(
+    "Revenue per Day Advantage: ₹",
+    revenue_day_difference
+)
 
+print(
+    "Fewer Total Working Hours:",
+    working_hour_difference
+)
+
+print(
+    "Lower Bark Consumption:",
+    bark_difference,
+    "cm"
+)
+
+print(
+    "Revenue per Hour Advantage: ₹",
+    revenue_hour_difference
+)
+
+print(
+    "Average Tapping Gap Advantage:",
+    gap_difference,
+    "days"
 )
 
 
-# =========================================================
-# 30. SAVE COMPLETE ANALYSIS
-# =========================================================
+# ============================================================
+# 24. BARK CONSUMPTION REDUCTION
+# ============================================================
 
-output_file = (
-    "C:/Users/shebi/Downloads/"
-    "rubber_analysis_summary.xlsx"
+bark_reduction_percentage = (
+    bark_difference /
+    without_medicine["Total_Bark"]
+) * 100
+
+print(
+    "\nBark Consumption Reduction:",
+    round(bark_reduction_percentage, 2),
+    "%"
 )
 
 
-with pd.ExcelWriter(output_file) as writer:
+# ============================================================
+# 25. CREATE GRAPHS
+# ============================================================
 
-    summary.to_excel(
-        writer,
-        sheet_name="Plantation Summary"
-    )
+strategies = comparison.index
 
-    strategy.to_excel(
-        writer,
-        sheet_name="Strategy Comparison"
-    )
 
-    data.to_excel(
+# ------------------------------------------------------------
+# GRAPH 1: WORKING DAYS
+# ------------------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+plt.bar(
+    strategies,
+    comparison["Working_Days"]
+)
+
+plt.title("Working / Tapping Days")
+plt.xlabel("Strategy")
+plt.ylabel("Number of Days")
+
+plt.tight_layout()
+plt.show()
+
+
+# ------------------------------------------------------------
+# GRAPH 2: TOTAL LATEX
+# ------------------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+plt.bar(
+    strategies,
+    comparison["Total_Latex"]
+)
+
+plt.title("Total Latex Production")
+plt.xlabel("Strategy")
+plt.ylabel("Latex (kg)")
+
+plt.tight_layout()
+plt.show()
+
+
+# ------------------------------------------------------------
+# GRAPH 3: TOTAL REVENUE
+# ------------------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+plt.bar(
+    strategies,
+    comparison["Total_Revenue"]
+)
+
+plt.title("Total Revenue")
+plt.xlabel("Strategy")
+plt.ylabel("Revenue (₹)")
+
+plt.tight_layout()
+plt.show()
+
+
+# ------------------------------------------------------------
+# GRAPH 4: REVENUE PER WORKING DAY
+# ------------------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+plt.bar(
+    strategies,
+    comparison["Revenue_per_Day"]
+)
+
+plt.title("Revenue per Working Day")
+plt.xlabel("Strategy")
+plt.ylabel("Revenue per Day (₹)")
+
+plt.tight_layout()
+plt.show()
+
+
+# ------------------------------------------------------------
+# GRAPH 5: LATEX PER WORKING DAY
+# ------------------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+plt.bar(
+    strategies,
+    comparison["Latex_per_Day"]
+)
+
+plt.title("Latex per Working Day")
+plt.xlabel("Strategy")
+plt.ylabel("Latex per Day (kg)")
+
+plt.tight_layout()
+plt.show()
+
+
+# ------------------------------------------------------------
+# GRAPH 6: REVENUE PER WORKING HOUR
+# ------------------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+plt.bar(
+    strategies,
+    comparison["Revenue_per_Hour"]
+)
+
+plt.title("Revenue per Working Hour")
+plt.xlabel("Strategy")
+plt.ylabel("Revenue per Hour (₹)")
+
+plt.tight_layout()
+plt.show()
+
+
+# ------------------------------------------------------------
+# GRAPH 7: TOTAL BARK CONSUMPTION
+# ------------------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+plt.bar(
+    strategies,
+    comparison["Total_Bark"]
+)
+
+plt.title("Total Recorded Bark Consumption")
+plt.xlabel("Strategy")
+plt.ylabel("Bark (cm)")
+
+plt.tight_layout()
+plt.show()
+
+
+# ------------------------------------------------------------
+# GRAPH 8: AVERAGE TAPPING GAP
+# ------------------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+plt.bar(
+    strategies,
+    comparison["Average_Tapping_Gap"]
+)
+
+plt.title("Average Tapping Gap")
+plt.xlabel("Strategy")
+plt.ylabel("Gap (Days)")
+
+plt.tight_layout()
+plt.show()
+
+
+# ============================================================
+# 26. SAVE FINAL EXCEL FILE
+# ============================================================
+
+output_file = r"C:\Users\shebi\Downloads\rubber_analysis_summary.xlsx"
+
+with pd.ExcelWriter(
+    output_file,
+    engine="openpyxl"
+) as writer:
+
+    # Cleaned Data
+    df.to_excel(
         writer,
         sheet_name="Cleaned Data",
         index=False
     )
 
+    # Plantation Summary
+    summary.to_excel(
+        writer,
+        sheet_name="Plantation Summary"
+    )
 
-print("\n")
-print("======================================================")
-print("       ANALYSIS FILE SAVED SUCCESSFULLY")
-print("======================================================")
+    # Strategy Comparison
+    comparison.to_excel(
+        writer,
+        sheet_name="Strategy Comparison"
+    )
 
+
+# ============================================================
+# 27. FINAL OUTPUT MESSAGE
+# ============================================================
+
+print("\n===================================================")
+print("ANALYSIS COMPLETED SUCCESSFULLY")
+print("===================================================")
+
+print("\nRecommended Strategy:")
+print(recommendation)
+
+print("\nFinal Excel file:")
 print(output_file)
 
-
-# =========================================================
-# 31. GRAPH 1 - WORKING DAYS
-# =========================================================
-
-working_days.plot(
-    kind="bar"
-)
-
-plt.title(
-    "Working Days Comparison"
-)
-
-plt.xlabel(
-    "Plantation"
-)
-
-plt.ylabel(
-    "Number of Days"
-)
-
-plt.xticks(rotation=0)
-
-plt.tight_layout()
-
-plt.show()
-
-
-# =========================================================
-# 32. GRAPH 2 - TOTAL LATEX
-# =========================================================
-
-total_latex.plot(
-    kind="bar"
-)
-
-plt.title(
-    "Total Latex Production"
-)
-
-plt.xlabel(
-    "Plantation"
-)
-
-plt.ylabel(
-    "Latex (kg)"
-)
-
-plt.xticks(rotation=0)
-
-plt.tight_layout()
-
-plt.show()
-
-
-# =========================================================
-# 33. GRAPH 3 - TOTAL INCOME
-# =========================================================
-
-total_income.plot(
-    kind="bar"
-)
-
-plt.title(
-    "Total Income Comparison"
-)
-
-plt.xlabel(
-    "Plantation"
-)
-
-plt.ylabel(
-    "Income (Rs)"
-)
-
-plt.xticks(rotation=0)
-
-plt.tight_layout()
-
-plt.show()
-
-
-# =========================================================
-# 34. GRAPH 4 - TOTAL PROFIT
-# =========================================================
-
-total_profit.plot(
-    kind="bar"
-)
-
-plt.title(
-    "Total Profit Comparison"
-)
-
-plt.xlabel(
-    "Plantation"
-)
-
-plt.ylabel(
-    "Profit (Rs)"
-)
-
-plt.xticks(rotation=0)
-
-plt.tight_layout()
-
-plt.show()
-
-
-# =========================================================
-# 35. GRAPH 5 - PROFIT PER DAY
-# =========================================================
-
-profit_per_day.plot(
-    kind="bar"
-)
-
-plt.title(
-    "Profit per Working Day"
-)
-
-plt.xlabel(
-    "Plantation"
-)
-
-plt.ylabel(
-    "Profit per Day (Rs)"
-)
-
-plt.xticks(rotation=0)
-
-plt.tight_layout()
-
-plt.show()
-
-
-# =========================================================
-# 36. GRAPH 6 - LATEX PER DAY
-# =========================================================
-
-latex_per_day.plot(
-    kind="bar"
-)
-
-plt.title(
-    "Latex Production per Working Day"
-)
-
-plt.xlabel(
-    "Plantation"
-)
-
-plt.ylabel(
-    "Latex per Day (kg)"
-)
-
-plt.xticks(rotation=0)
-
-plt.tight_layout()
-
-plt.show()
-
-
-# =========================================================
-# 37. GRAPH 7 - PROFIT PER HOUR
-# =========================================================
-
-profit_per_hour.plot(
-    kind="bar"
-)
-
-plt.title(
-    "Profit per Working Hour"
-)
-
-plt.xlabel(
-    "Plantation"
-)
-
-plt.ylabel(
-    "Profit per Hour (Rs)"
-)
-
-plt.xticks(rotation=0)
-
-plt.tight_layout()
-
-plt.show()
-
-
-# =========================================================
-# 38. FINAL MESSAGE
-# =========================================================
-
-print("\n")
-print("======================================================")
-print("             ANALYSIS COMPLETED")
-print("======================================================")
-
-print(
-    "\nBest-performing strategy:",
-    best_strategy
-)
-
-print(
-    "\nNote: The recommendation is based on the "
-    "observed dataset."
-)
+print("\nSheets created:")
+print("1. Cleaned Data")
+print("2. Plantation Summary")
+print("3. Strategy Comparison")
+
+print("\n===================================================")
